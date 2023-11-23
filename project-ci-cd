@@ -1,0 +1,62 @@
+pipeline
+{
+    agent any
+    stages
+    {
+        stage('continous download')
+        {
+            steps
+            {
+                git 'https://github.com/sudarshansw7/mymaven.git'
+            }
+        }
+        stage('continous build')
+        {
+            steps
+            {
+                sh 'mvn package'
+            }
+        }
+        stage('build docker image')
+        {
+            steps
+            {
+            
+                sh 'cp /var/lib/jenkins/workspace/end-to-end-project/webapp/target/webapp.war /var/lib/jenkins/workspace/end-to-end-project'
+                
+                sh '''cat>dockerfile<<EOF
+
+FROM tomee
+MAINTAINER  udaya
+COPY *.war /usr/local/tomee/webapps/testapp.war
+
+EOF
+'''
+sh 'docker build -t jyothiuma/udaya .'
+    
+            }
+        }
+        stage('image push into hub')
+        {
+            steps
+            {
+                sh 'docker push jyothiuma/udaya'
+            }
+        }
+        stage('create a container into qaservers through controller')
+        {
+            steps
+            {
+                sh 'ssh ubuntu@172.31.29.118 ansible-playbook /home/ubuntu/playbooks/application.yml -b'
+            }
+        }
+        stage('functional testing')
+        {
+            steps
+            {
+                git 'https://github.com/sudarshansw7/myfunctionaltesting.git'
+                sh 'java -jar /var/lib/jenkins/workspace/end-to-end-project/testing.jar'
+            }
+        }
+    }
+}
