@@ -1,0 +1,97 @@
+prereqisites:@ 4 servers
+Jenkins server: install java, git, maven, jenkins, docker
+Controller: install ansible
+      #sudo apt-get install -y software-properties-common
+      #sudo apt-add-repository ppa:ansible/ansible
+      #sudo apt-get update
+      #sudo apt-get install -y ansible
+      #ansible --version
+      #cd /etc/ansible
+      #sudo vim hosts ......paste qa1,2 servers private ips
+QA servers1,2: install tomcat9, tomcat9-admin
+        #ssh passwd ubuntu
+        #sudo vim /etc/ssh/sshd_config
+        change passwordauthentication no to yes
+        #sudo service ssh restart
+        >goto controller and create ssh connections
+        #ssh-keygen
+        #ssh-copy-id ubuntu@ips
+Connect controller to jenkins:
+    >goto controller and change ssh password no to yes
+    >goto jenkins ubuntu user and generate ssh-keys and connect to controller. 
+Docker installations on jenkins for docker file and build image.
+     $ curl -fsSL https://get.docker.com -o install-docker.sh
+     $ sudo sh install-docker.sh
+Attach docker and jenkins command
+ $ sudo usemod -aG docker jenkins
+ $ sudo su - jenkins
+ $ docker login or $ docker images
+
+
+step-1: create a declarative pipeline 
+stage-1 download the code from git hub.
+                      pipeline
+                      {
+                          agent any
+                          stages
+                          {
+                              stage('continous download')
+                              {
+                                  steps
+                                  {
+                                      git 'https://github.com/sudarshansw7/mymaven.git'
+                                  }
+                              }
+  stage-2 generate artifacts from given developercode (or) continuous build
+                           stage('continous build')
+                          {
+                              steps
+                              {
+                                  sh 'mvn package'
+                              }
+                          }
+  stage-3 build docker image:
+  > In docker file we have to copy the artifacts into the tomcat, this is the requirement. for this we have design a dockerfile.
+  > We have workspace created by our jenkins, in that workspace our project files are there, but we have our artifact(webapp.war) in a folder called target,
+  > then copy the webapp.war file into our workspace, then only jenkins will perform actions on that file.
+  > Automatically my jenkins should do copying artifacts from target folder into workspace.
+      #cp webapp/target/webapp.war .
+  > For creating docker file using jenkins
+         #cat >dockerfile<<EOF
+          FROM tomee
+          MAINTAINER udaya
+          COPY webapps.war /usr/local/tomee/webapps/testapp.war
+          EOF
+  > we must copy into tomcats webapps folder to run our application.convert all that code into groovy and paste in pipeline
+    @pipelinecode:
+                stage('build docker image')
+                {
+                          steps
+                          {
+                          
+                              sh 'cp /var/lib/jenkins/workspace/end-to-end-project/webapp/target/webapp.war /var/lib/jenkins/workspace/end-to-end-project'
+                              
+                              sh '''cat>dockerfile<<EOF
+              
+              FROM tomee
+              MAINTAINER  udaya
+              COPY *.war /usr/local/tomee/webapps/testapp.war
+              
+              EOF
+              '''
+              sh 'docker build -t jyothiuma/app .'
+                  
+                          }
+                      }
+  stage-4 now upload the image into docker hub registry
+  @pipelinecode:
+            stage('image push into hub')
+                  {
+                      steps
+                      {
+                          sh 'docker push jyothiuma/app'
+                      }
+                  }
+  stage-5
+> now this image should be created as container in testing qa1,2  servers and tested with selenium programs.
+> for that we design ansible playbooks
