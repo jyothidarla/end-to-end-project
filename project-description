@@ -92,6 +92,112 @@ stage-1 download the code from git hub.
                           sh 'docker push jyothiuma/app'
                       }
                   }
-  stage-5
+@stage-5
 > now this image should be created as container in testing qa1,2  servers and tested with selenium programs.
-> for that we design ansible playbooks
+> For that we design ansible playbooks
+> prior to this, see that docker is installed on all the qa servers, if its there just design playbooks for creation of containers.
+> create a playbook to install docker on the testing environments and our ansible must be integrated with docker.
+ #vim installation.yml
+              ---
+              - name: install docker and required s/w for ansible integration
+                hosts: all
+                tasks:
+                  - name: install pip3
+                    apt:
+                       name: python3-pip
+                       state: present
+                        update_cache: yes
+                   - name: Download the docker script and execute it and also install dcoker-py
+                     shell: "{{items}}"
+                     with_items:
+                        - curl -fsSL https://get.docker.com -o install-docker.sh
+                        - sudo sh install-docker.sh
+                        - pip3 install docker-py
+              ...
+
+@ Download docker image and create container on all QA servers , create playbook
+#application.yml
+---
+- name: download the image and create a container on all qa servers
+  hosts: all
+  tasks:
+    - name: create a container from image
+      docker_container:
+        name: myapp
+        image: jyothiuma/app
+        ports:
+          - 9090:8080
+...
+
+@pipelinecode:
+
+                  stage('create a container into qaservers through controller')
+                          {
+                              steps
+                              {
+                                  sh 'ssh ubuntu@172.31.29.118 ansible-playbook /home/ubuntu/playbooks/application.yml -b'
+                              }
+                          }
+..................................................................................................................................................
+@stage-6----download selenium programms into qaa servers for testing
+@pipeline
+                          
+                        stage('functional testing')
+                          {
+                              steps
+                              {
+                                  git 'https://github.com/sudarshansw7/myfunctionaltesting.git'
+                                  sh 'java -jar /var/lib/jenkins/workspace/end-to-end-project/testing.jar'
+                              }
+                          }
+..........................................................................................................................................................
+stage-7---Deploy that application into production environment
+
+> production environment is running on kubernetes cluster
+> we design definition files and service definition files in kops_server/prod_eks_server
+
+@now launch a instance attach IAM ROLE with ADMINACCESS and install AWS-IAM-AUTHENTICATOR and install kubectl and eksctl.
+@design definitionfile and serviceyml file
+#vim javaapp.yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: app-deployment
+   labels:
+     type: website
+     author: udaya
+spec:
+  replicas: 3
+  selector:
+   matchLabels:
+     type: website
+  template:
+    metadata:
+      name: website-pod
+      labels:
+        type: website
+    spec:
+      containers:
+        - name: c1
+          image: jyothiuma/app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: website-service
+spec:
+  type: LoadBalancer
+  ports:
+    - targetPort: 8080
+      port: 8080
+      nodePort: 30009
+  selector:
+    type: website
+...
+
+> create a cluster with 2 managed nodes.
+
+                   
+
+
